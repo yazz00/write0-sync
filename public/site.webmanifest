@@ -1,6 +1,6 @@
 {
-  "name": "write0",
-  "short_name": "write0",
+  "name": "write0 sync",
+  "short_name": "write0 sync",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
