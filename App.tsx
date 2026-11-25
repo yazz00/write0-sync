@@ -32,6 +32,7 @@ import { usePersistentStorage } from './hooks/usePersistentStorage';
 import { useSessionSync, UNAUTHORIZED_EVENT } from './hooks/useSessionSync';
 import { api } from './sync/api';
 import { getUnsavedRanges } from './sync/diff';
+import { newId } from './utils/id';
 import type { Network, Role } from './sync/session';
 
 const App: React.FC = () => {
@@ -283,7 +284,7 @@ const App: React.FC = () => {
     setAskNewDocName(false);
     if (!sync.canEdit) return;
     const newDoc: Document = {
-      id: crypto.randomUUID(),
+      id: newId(),
       title: name,
       content: '',
       folderId: INITIAL_FOLDER_ID,

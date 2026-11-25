@@ -1,6 +1,15 @@
 # Racine du site write0 (copié en dist/.htaccess)
 Options -Indexes
 
+# Toujours en HTTPS : en http, le mot de passe circulerait en clair et l'appli ne démarre pas.
+# Infomaniak termine le HTTPS en amont et l'indique par X-Forwarded-Proto.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
 # Les textes sont hors du site (~/write0-data) ; par prudence, rien d'autre n'est servi
 # que l'appli et api.php : ni fichiers cachés, ni .md, ni script d'installation.
 <FilesMatch "(^\.|\.md$|^setup\.php$)">

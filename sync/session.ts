@@ -1,5 +1,6 @@
 import { Document } from '../types';
 import { INITIAL_FOLDER_ID } from '../constants';
+import { newId } from '../utils/id';
 import {
   api,
   Client,
@@ -95,7 +96,7 @@ function toDocument(s: ServerDoc, previous?: Document): Document {
 }
 
 export class SessionSync {
-  readonly session = crypto.randomUUID();
+  readonly session = newId();
   role: Role = 'starting';
   network: Network = 'online';
   owner: string | null = null;
