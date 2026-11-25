@@ -1,3 +1,14 @@
+> **Fork of [write0](https://github.com/omarbdri/write0)** (by Omar Badri and the write0
+> contributors; the MIT license is kept in `LICENSE`).
+>
+> This fork saves your writing to PHP web hosting (`server/api.php`): a login screen, a single
+> session in control at a time (other sessions follow along read-only), unsaved text shown in
+> orange, and Tailwind and fonts bundled into the build. Setup and deployment: see
+> [DEPLOIEMENT.md](DEPLOIEMENT.md) (in French). The rest of this README comes from the original
+> project.
+>
+> ---
+>
 > **Fork de [write0](https://github.com/omarbdri/write0)** (par Omar Badri et les
 > contributeurs de write0, licence MIT conservée dans `LICENSE`).
 >
