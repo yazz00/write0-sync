@@ -52,7 +52,9 @@ const Screen: React.FC<{ overlay?: boolean; children: React.ReactNode }> = ({
     className={`${overlay ? 'fixed inset-0 z-[60] bg-gray-50/95 dark:bg-[#191919]/95' : 'h-dvh bg-gray-50 dark:bg-[#191919]'} flex items-center justify-center px-6`}
   >
     <div className="w-full max-w-xs space-y-4">
-      <h1 className="font-mono font-medium text-2xl text-gray-800 dark:text-gray-100">write0</h1>
+      <h1 className="font-mono font-medium text-2xl text-gray-800 dark:text-gray-100">
+        write0 sync
+      </h1>
       {children}
     </div>
   </div>
@@ -61,7 +63,7 @@ const Screen: React.FC<{ overlay?: boolean; children: React.ReactNode }> = ({
 const OfflineScreen: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
   <Screen>
     <p className="text-sm text-gray-600 dark:text-gray-400">
-      The server cannot be reached. write0 needs a network connection to open.
+      The server cannot be reached. write0 sync needs a network connection to open.
     </p>
     <button
       onClick={onRetry}
