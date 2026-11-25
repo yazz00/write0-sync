@@ -4,6 +4,25 @@ import { expect, it, vi } from 'vitest';
 import App from '../App';
 import { STORAGE_KEYS } from '../utils/storageUtils';
 
+// Ces tests d'origine de write0 portent sur l'éditeur seul : la session a toujours la main.
+// Le moteur de session est testé à part (session.test.ts, api-php.test.ts).
+vi.mock('../hooks/useSessionSync', () => ({
+  UNAUTHORIZED_EVENT: 'write0:unauthorized',
+  AUTHENTICATED_EVENT: 'write0:authenticated',
+  useSessionSync: () => ({
+    role: 'active',
+    network: 'online',
+    owner: null,
+    canEdit: true,
+    canPersist: true,
+    unsavedCount: 0,
+    savedContent: () => '',
+    requestControl: () => {},
+    notices: [],
+    dismissNotice: () => {},
+  }),
+}));
+
 it('keeps a deleted library empty after reloading', () => {
   vi.useFakeTimers();
   const view = render(<App />);
@@ -68,4 +87,27 @@ it('renders with missing or invalid saved settings', () => {
   localStorage.setItem(STORAGE_KEYS.settings, 'null');
   render(<App />);
   expect(screen.getByRole('button', { name: 'Enable typewriter mode' })).toBeTruthy();
+});
+
+it('asks for a name when creating a document', () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: /New Document/ }));
+  const input = screen.getByRole('textbox', { name: 'Document name' });
+  expect(screen.getByRole('button', { name: 'Create' })).toHaveProperty('disabled', true);
+
+  fireEvent.change(input, { target: { value: '  Journal de novembre  ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  const current = screen.getByRole('button', { current: 'page' });
+  expect(current.textContent).toContain('Journal de novembre');
+});
+
+it('creates nothing when the name dialog is cancelled', () => {
+  render(<App />);
+  const before = screen.getAllByRole('button', { name: 'Delete document' }).length;
+  fireEvent.click(screen.getByRole('button', { name: /New Document/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Delete document' })).toHaveLength(before);
 });

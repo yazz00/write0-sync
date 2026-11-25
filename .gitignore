@@ -8,3 +8,8 @@ coverage
 
 .vscode/*
 !.vscode/extensions.json
+# Données locales de dev (textes, mot de passe hashé)
+.dev-data
+
+# Cible de déploiement propre à chaque installation (ex. infomaniak:sites/mon-site/)
+.deploy-target

@@ -4,7 +4,7 @@ import { RefObject, useEffect, useLayoutEffect, useRef } from 'react';
 export function useDialogFocus(
   isOpen: boolean,
   dialogRef: RefObject<HTMLDivElement | null>,
-  initialFocusRef: RefObject<HTMLButtonElement | null>,
+  initialFocusRef: RefObject<HTMLElement | null>,
   onClose: () => void,
 ) {
   const closeRef = useRef(onClose);

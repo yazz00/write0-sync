@@ -1,3 +1,12 @@
+> **Fork de [write0](https://github.com/omarbdri/write0)** (par Omar Badri et les
+> contributeurs de write0, licence MIT conservée dans `LICENSE`).
+>
+> Ce fork ajoute l'enregistrement des textes sur un hébergement PHP (`server/api.php`) :
+> écran de connexion, une seule session qui a la main à la fois (les autres suivent en lecture
+> seule), texte non enregistré affiché en orange, Tailwind et polices intégrés au build.
+> Installation et déploiement : voir [DEPLOIEMENT.md](DEPLOIEMENT.md). La suite de ce README est
+> celle du projet d'origine.
+
 # write0
 
 <p align="center">

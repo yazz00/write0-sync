@@ -15,13 +15,24 @@ import {
   Share,
   ClipboardPen,
   AlignCenter,
+  Cloud,
+  CloudOff,
+  RefreshCw,
+  LogOut,
+  Lock,
+  X,
 } from 'lucide-react';
 import { Tooltip } from './components/Tooltip';
 import { HelpModal } from './components/HelpModal';
 import { ConfirmModal } from './components/ConfirmModal';
+import { NameModal } from './components/NameModal';
 import { readJson, writeJson, STORAGE_KEYS, StorageKey } from './utils/storageUtils';
 import { restoreDocuments, restoreSettings } from './utils/stateUtils';
 import { usePersistentStorage } from './hooks/usePersistentStorage';
+import { useSessionSync, UNAUTHORIZED_EVENT } from './hooks/useSessionSync';
+import { api } from './sync/api';
+import { getUnsavedRanges } from './sync/diff';
+import type { Network, Role } from './sync/session';
 
 const App: React.FC = () => {
   const [storageErrors, setStorageErrors] = useState<Partial<Record<StorageKey, string>>>({});
@@ -50,6 +61,9 @@ const App: React.FC = () => {
     return restoreSettings(readJson<unknown>(STORAGE_KEYS.settings, null));
   });
 
+  // Une seule session (onglet) a la main ; les autres suivent le texte en lecture seule.
+  const sync = useSessionSync({ documents, setDocuments, activeDocId, setActiveDocId });
+
   // Distraction free typing state
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<number | null>(null);
@@ -64,6 +78,9 @@ const App: React.FC = () => {
 
   // Confirm delete state
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+
+  // Nom demandé à la création d'un texte
+  const [askNewDocName, setAskNewDocName] = useState(false);
 
   // Cursor position (for focus mode syncing with Preview)
   const [cursorOffset, setCursorOffset] = useState(0);
@@ -105,6 +122,14 @@ const App: React.FC = () => {
 
   const readingTime = Math.ceil(wordCount / 200);
 
+  // Texte pas encore enregistré sur le serveur, affiché en orange.
+  const savedText = activeDoc ? sync.savedContent(activeDoc.id) : '';
+  const activeContent = activeDoc?.content ?? '';
+  const unsavedRanges = useMemo(
+    () => getUnsavedRanges(savedText, activeContent),
+    [savedText, activeContent],
+  );
+
   // --- Handlers ---
   const toggleSetting = useCallback((key: keyof AppSettings) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -124,7 +149,7 @@ const App: React.FC = () => {
     });
   }, []);
 
-  usePersistentStorage(STORAGE_KEYS.documents, documents, handleSaveResult);
+  usePersistentStorage(STORAGE_KEYS.documents, documents, handleSaveResult, sync.canPersist);
   usePersistentStorage(STORAGE_KEYS.activeDocumentId, activeDocId, handleSaveResult);
   usePersistentStorage(STORAGE_KEYS.settings, settings, handleSaveResult);
 
@@ -158,6 +183,7 @@ const App: React.FC = () => {
       if (
         !showHelp &&
         !deleteDocId &&
+        !askNewDocName &&
         !e.isComposing &&
         (e.ctrlKey || e.metaKey) &&
         e.key.toLowerCase() === 'b'
@@ -169,7 +195,7 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSetting, showHelp, deleteDocId]);
+  }, [toggleSetting, showHelp, deleteDocId, askNewDocName]);
 
   // Click outside to close export menu
   useEffect(() => {
@@ -208,6 +234,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateContent = (content: string) => {
+    if (!sync.canEdit) return;
     setDocuments((prev) =>
       prev.map((doc) => {
         if (doc.id === activeDocId) {
@@ -238,6 +265,7 @@ const App: React.FC = () => {
   );
 
   const handleRenameDoc = (id: string, title: string) => {
+    if (!sync.canEdit) return sync.requestControl();
     setDocuments((prev) =>
       prev.map((doc) =>
         doc.id === id ? { ...doc, title, hasCustomTitle: true, updatedAt: Date.now() } : doc,
@@ -246,13 +274,21 @@ const App: React.FC = () => {
   };
 
   const handleCreateDoc = () => {
+    if (!sync.canEdit) return sync.requestControl();
+    setAskNewDocName(true);
+  };
+
+  /** Le nom choisi devient le titre ; le nom du fichier sur le serveur en est tiré. */
+  const handleConfirmNewDoc = (name: string) => {
+    setAskNewDocName(false);
+    if (!sync.canEdit) return;
     const newDoc: Document = {
       id: crypto.randomUUID(),
-      title: 'Untitled',
+      title: name,
       content: '',
       folderId: INITIAL_FOLDER_ID,
       updatedAt: Date.now(),
-      hasCustomTitle: false,
+      hasCustomTitle: true,
     };
     setDocuments((prev) => [newDoc, ...prev]);
     setActiveDocId(newDoc.id);
@@ -262,11 +298,16 @@ const App: React.FC = () => {
   };
 
   const handleDeleteDoc = (id: string) => {
+    if (!sync.canEdit) return sync.requestControl();
     setDeleteDocId(id);
   };
 
   const handleConfirmDeleteDoc = () => {
     if (!deleteDocId) return;
+    if (!sync.canEdit) {
+      setDeleteDocId(null);
+      return;
+    }
 
     const nextDocs = documents.filter((doc) => doc.id !== deleteDocId);
     setDocuments(nextDocs);
@@ -302,10 +343,16 @@ const App: React.FC = () => {
       {/* Help Modal */}
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
+      <NameModal
+        isOpen={askNewDocName}
+        onCancel={() => setAskNewDocName(false)}
+        onConfirm={handleConfirmNewDoc}
+      />
+
       <ConfirmModal
         isOpen={deleteDocId !== null}
         title="Delete document?"
-        description="This will permanently remove it from this device."
+        description="It will be moved to the server trash and permanently deleted after 30 days."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
@@ -315,7 +362,7 @@ const App: React.FC = () => {
 
       {/* Sidebar - Fades out when typing */}
       <div
-        inert={showHelp || deleteDocId !== null}
+        inert={showHelp || deleteDocId !== null || askNewDocName}
         className={`flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
           settings.showSidebar ? 'w-0 md:w-72' : 'w-0'
         } ${isTyping ? 'opacity-0 pointer-events-none delay-200' : 'opacity-100 delay-0'}`}
@@ -338,7 +385,7 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <div
-        inert={showHelp || deleteDocId !== null}
+        inert={showHelp || deleteDocId !== null || askNewDocName}
         className="flex-1 flex flex-col min-w-0 bg-gray-50 dark:bg-[#191919] transition-all duration-300 relative"
       >
         {/* Top Bar - Fades out when typing */}
@@ -359,6 +406,7 @@ const App: React.FC = () => {
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400 hidden sm:inline-block">
               {wordCount} words <span className="mx-1">•</span> {readingTime} min read
             </span>
+            <SaveIndicator network={sync.network} role={sync.role} unsaved={sync.unsavedCount} />
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
@@ -479,6 +527,19 @@ const App: React.FC = () => {
                     >
                       PDF (Print)
                     </button>
+                    <div className="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+                    <button
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        api
+                          .logout()
+                          .then(() => window.dispatchEvent(new Event(UNAUTHORIZED_EVENT)))
+                          .catch(() => alert('Server unreachable: could not log out.'));
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    >
+                      <LogOut size={14} /> Log out
+                    </button>
                   </div>
                 </div>
               )}
@@ -494,6 +555,21 @@ const App: React.FC = () => {
             {storageError}
           </div>
         )}
+
+        <SessionBanner role={sync.role} ownerActive={sync.owner !== null} first={!storageError} />
+
+        {sync.notices.map((notice, index) => (
+          <div
+            key={index}
+            role="alert"
+            className={`relative z-30 ${index === 0 && !storageError && sync.role === 'active' ? 'mt-14' : ''} flex-shrink-0 flex items-start gap-2 px-4 py-2 text-sm bg-orange-100 text-orange-900 dark:bg-orange-900 dark:text-orange-100`}
+          >
+            <span className="flex-1">{notice}</span>
+            <button onClick={() => sync.dismissNotice(index)} aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </div>
+        ))}
 
         {/* Editor Area */}
         <div className="flex-1 flex overflow-hidden relative bg-gray-50 dark:bg-[#191919]">
@@ -515,6 +591,9 @@ const App: React.FC = () => {
                   onPastedRangesChange={handlePastedRangesChange}
                   highlightPastedText={settings.highlightPastedText}
                   onCursorOffsetChange={setCursorOffset}
+                  readOnly={!sync.canEdit}
+                  onRequestControl={sync.requestControl}
+                  unsavedRanges={unsavedRanges}
                 />
               </div>
               {settings.showPreview && (
@@ -549,6 +628,72 @@ const App: React.FC = () => {
           />
         </div>
       )}
+    </div>
+  );
+};
+
+/** Nuage : rouge et bien visible hors ligne, orange tant que des modifications attendent. */
+const SaveIndicator: React.FC<{ network: Network; role: Role; unsaved: number }> = ({
+  network,
+  role,
+  unsaved,
+}) => {
+  if (network === 'offline') {
+    return (
+      <span
+        role="status"
+        className="flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-1 text-xs font-semibold text-white"
+      >
+        <CloudOff size={16} /> Offline{unsaved > 0 ? ' — not saved' : ''}
+      </span>
+    );
+  }
+  const label =
+    network === 'unauthorized'
+      ? 'Session expired'
+      : unsaved > 0
+        ? `Saving… (${unsaved} document${unsaved > 1 ? 's' : ''} not saved yet)`
+        : role === 'starting'
+          ? 'Connecting…'
+          : 'All changes saved';
+  return (
+    <Tooltip content={label} position="bottom">
+      <span
+        role="status"
+        aria-label={label}
+        className={`p-2 ${unsaved > 0 ? 'text-orange-500' : 'text-gray-400 dark:text-gray-500'}`}
+      >
+        {unsaved > 0 || role === 'starting' ? <RefreshCw size={16} /> : <Cloud size={16} />}
+      </span>
+    </Tooltip>
+  );
+};
+
+const SESSION_MESSAGES: Partial<Record<Role, string>> = {
+  starting: 'Connecting to the server…',
+  acquiring: 'Taking over… the other session is saving its last changes (10 seconds at most).',
+  'handing-over': 'Another session is taking over. Saving your last changes…',
+};
+
+/** Bandeau des sessions qui n'ont pas la main. */
+const SessionBanner: React.FC<{ role: Role; ownerActive: boolean; first: boolean }> = ({
+  role,
+  ownerActive,
+  first,
+}) => {
+  if (role === 'active') return null;
+  const message =
+    SESSION_MESSAGES[role] ??
+    (ownerActive
+      ? 'This text is being edited in another session. Click in the text to take over here.'
+      : 'No other session is writing. Click in the text to write here.');
+  return (
+    <div
+      role="status"
+      className={`relative z-30 ${first ? 'mt-14' : ''} flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-100`}
+    >
+      <Lock size={14} className="flex-shrink-0" />
+      <span>{message}</span>
     </div>
   );
 };

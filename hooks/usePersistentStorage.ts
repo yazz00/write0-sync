@@ -8,16 +8,19 @@ export function usePersistentStorage(
   key: StorageKey,
   value: unknown,
   onResult: (result: SaveResult, key: StorageKey) => void,
+  /** false : rien n'est écrit (session write0 qui n'a pas la main). */
+  enabled = true,
 ) {
-  const latestRef = useRef({ value, onResult });
+  const latestRef = useRef({ value, onResult, enabled });
   const timeoutRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
-    latestRef.current = { value, onResult };
-  }, [value, onResult]);
+    latestRef.current = { value, onResult, enabled };
+  }, [value, onResult, enabled]);
 
   useEffect(() => {
     const save = () => {
+      if (!latestRef.current.enabled) return;
       const result = writeJson(key, latestRef.current.value);
       latestRef.current.onResult(result, key);
     };
@@ -25,11 +28,12 @@ export function usePersistentStorage(
     return () => {
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     };
-  }, [key, value]);
+  }, [key, value, enabled]);
 
   useEffect(() => {
     const flush = () => {
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      if (!latestRef.current.enabled) return;
       const result = writeJson(key, latestRef.current.value);
       latestRef.current.onResult(result, key);
     };

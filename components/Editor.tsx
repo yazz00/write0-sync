@@ -18,6 +18,12 @@ interface EditorProps {
   onPastedRangesChange?: (ranges: PastedRange[]) => void;
   highlightPastedText: boolean;
   onCursorOffsetChange?: (offset: number) => void;
+  /** Session sans la main : texte en lecture seule. */
+  readOnly?: boolean;
+  /** Premier clic ou première frappe dans une session en lecture seule. */
+  onRequestControl?: () => void;
+  /** Texte pas encore enregistré sur le serveur (affiché en orange). */
+  unsavedRanges?: PastedRange[];
 }
 
 function toGlobalRegex(regex: RegExp): RegExp {
@@ -184,6 +190,9 @@ export const Editor: React.FC<EditorProps> = ({
   onPastedRangesChange,
   highlightPastedText,
   onCursorOffsetChange,
+  readOnly = false,
+  onRequestControl,
+  unsavedRanges = EMPTY_RANGES,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -603,6 +612,20 @@ export const Editor: React.FC<EditorProps> = ({
   const handleSelect = updateSelection;
   const handleKeyUp = updateSelection;
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (readOnly) {
+      // Navigation et copie restent possibles ; toute frappe d'écriture demande la main.
+      const writes =
+        !e.ctrlKey &&
+        !e.metaKey &&
+        (e.key.length === 1 || ['Enter', 'Backspace', 'Delete', 'Tab'].includes(e.key));
+      const editShortcut =
+        (e.ctrlKey || e.metaKey) && ['z', 'y', 'x', 'v'].includes(e.key.toLowerCase());
+      if (writes || editShortcut) {
+        e.preventDefault();
+        onRequestControl?.();
+      }
+      return;
+    }
     onTyping();
     setToolbarState((prev) => ({ ...prev, visible: false }));
 
@@ -667,6 +690,9 @@ export const Editor: React.FC<EditorProps> = ({
   const handleClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     updateSelection(e);
   };
+  const handleMouseDown = () => {
+    if (readOnly) onRequestControl?.();
+  };
 
   const currentParagraphRange = useMemo(() => {
     if (!focusMode || !content) return null;
@@ -677,33 +703,54 @@ export const Editor: React.FC<EditorProps> = ({
     return { start, end: endOffset === -1 ? content.length : cursorOffset + endOffset };
   }, [content, cursorOffset, focusMode]);
 
+  const renderSavedText = useCallback(
+    (text: string, start: number) => {
+      const segments = highlightPastedText
+        ? getPastedSegments(text, start, pastedRanges)
+        : [{ text, isPasted: false }];
+
+      return segments.map((seg, idx) =>
+        highlightPastedText && seg.isPasted ? (
+          <span key={idx} className="pasted-text">
+            {seg.text}
+          </span>
+        ) : styleCheck ? (
+          <React.Fragment key={idx}>
+            {renderStyleCheckedText(seg.text, `${start}-${idx}`)}
+          </React.Fragment>
+        ) : (
+          <React.Fragment key={idx}>{seg.text}</React.Fragment>
+        ),
+      );
+    },
+    [pastedRanges, styleCheck, highlightPastedText],
+  );
+
   const renderStyledParagraph = useCallback(
     (text: string, paragraphStart: number) => {
       if (!text) return null;
 
-      const segments = highlightPastedText
-        ? getPastedSegments(text, paragraphStart, pastedRanges)
-        : [{ text, isPasted: false }];
+      // Le texte non enregistré passe en orange, par-dessus les autres surlignages.
+      const segments = getPastedSegments(text, paragraphStart, unsavedRanges);
+      let offset = paragraphStart;
 
       return (
         <span className="whitespace-pre-wrap">
-          {segments.map((seg, idx) =>
-            highlightPastedText && seg.isPasted ? (
-              <span key={idx} className="pasted-text">
+          {segments.map((seg, idx) => {
+            const start = offset;
+            offset += seg.text.length;
+            return seg.isPasted ? (
+              <span key={`u${idx}`} className="unsaved-text">
                 {seg.text}
               </span>
-            ) : styleCheck ? (
-              <React.Fragment key={idx}>
-                {renderStyleCheckedText(seg.text, `${paragraphStart}-${idx}`)}
-              </React.Fragment>
             ) : (
-              <React.Fragment key={idx}>{seg.text}</React.Fragment>
-            ),
-          )}
+              <React.Fragment key={`s${idx}`}>{renderSavedText(seg.text, start)}</React.Fragment>
+            );
+          })}
         </span>
       );
     },
-    [pastedRanges, styleCheck, highlightPastedText],
+    [unsavedRanges, renderSavedText],
   );
 
   const renderBackdrop = useCallback(() => {
@@ -797,6 +844,8 @@ export const Editor: React.FC<EditorProps> = ({
         onKeyDown={handleKeyDown}
         onClick={handleClick}
         onMouseUp={handleMouseUp}
+        onMouseDown={handleMouseDown}
+        readOnly={readOnly}
         className={`editor-layer absolute inset-0 bg-transparent text-transparent caret-blue-600 dark:caret-blue-400 resize-none outline-none z-10 selection:bg-blue-200/50 dark:selection:bg-blue-800/50 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 ${isSplitMode ? 'split-mode' : ''} ${typewriterMode ? 'typewriter-mode' : ''}`}
         spellCheck={false}
         placeholder="Start writing..."
