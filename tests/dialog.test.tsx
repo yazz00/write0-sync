@@ -49,3 +49,13 @@ it('does not dismiss a pending confirmation with Escape', async () => {
     complete();
   });
 });
+
+it('presents this fork and credits the original write0 in the help dialog', () => {
+  render(<HelpModal isOpen={true} onClose={() => {}} />);
+  expect(screen.getByRole('heading', { name: 'write0-sync Features' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'write0-sync' }).getAttribute('href')).toBe(
+    'https://github.com/yazz00/write0-sync',
+  );
+  expect(screen.getByText(/Based on write0, built by/)).toBeTruthy();
+  expect(screen.getByText('Saved to Your Server')).toBeTruthy();
+});

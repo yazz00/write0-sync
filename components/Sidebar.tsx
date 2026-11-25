@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Plus, FileText, Trash2, Search, X, Edit2, Check, CircleHelp, Coffee } from 'lucide-react';
+import { Plus, FileText, Trash2, Search, X, Edit2, Check, CircleHelp } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Document } from '../types';
 
@@ -219,16 +219,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <CircleHelp size={18} />
           </button>
         </Tooltip>
-
-        <a
-          href="https://buymeacoffee.com/omarbadri"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-2 px-2 py-2 bg-white dark:bg-gray-900 hover:bg-yellow-300 dark:hover:bg-yellow-300 dark:hover:text-gray-900 text-gray-900 dark:text-white rounded-xl text-sm font-semibold transition-all duration-200 hover:shadow-sm active:scale-[0.98]"
-        >
-          <Coffee size={18} />
-          <span>Buy me a coffee</span>
-        </a>
       </div>
     </div>
   );

@@ -1,6 +1,17 @@
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import React, { useRef } from 'react';
-import { X, Eye, Download, ClipboardPen, Layout, TextSearch, Columns } from 'lucide-react';
+import {
+  X,
+  Eye,
+  Download,
+  ClipboardPen,
+  Layout,
+  TextSearch,
+  Columns,
+  Cloud,
+  Lock,
+  CloudOff,
+} from 'lucide-react';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -10,6 +21,13 @@ interface HelpModalProps {
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  /** Ce fork, puis le projet d'origine (crédit conservé, licence MIT). */
+  const fork = {
+    name: 'write0-sync',
+    author: 'Yazz',
+    href: 'https://github.com/yazz00/write0-sync',
+  };
 
   const builtBy: {
     name: string;
@@ -60,6 +78,27 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
       title: 'Split View',
       description: 'Write and preview your formatted text side-by-side.',
     },
+  ];
+
+  const forkFeatures = [
+    {
+      icon: <Cloud className="text-sky-500" size={24} />,
+      title: 'Saved to Your Server',
+      description:
+        'Your writing is saved to your own web hosting every few seconds. Text not saved yet is shown in orange.',
+    },
+    {
+      icon: <Lock className="text-blue-600" size={24} />,
+      title: 'One Session at a Time',
+      description:
+        'Only one tab writes at a time; the others follow along read-only. Click in the text to take over.',
+    },
+    {
+      icon: <CloudOff className="text-red-500" size={24} />,
+      title: 'Offline Warning',
+      description:
+        'A red “Offline” badge appears when the server cannot be reached. Keep writing: it is sent once you are back online.',
+    },
     // {
     //   icon: <Moon className="text-amber-500" size={24} />,
     //   title: 'Dark Mode',
@@ -88,7 +127,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             id="w0-help-title"
             className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"
           >
-            write0 Features
+            {fork.name} Features
           </h2>
           <button
             ref={closeButtonRef}
@@ -102,6 +141,27 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[70vh]">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Added in {fork.name}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {forkFeatures.map((feature, index) => (
+              <div key={index} className="flex gap-4 p-2 rounded-lg">
+                <div className="flex-shrink-0 mt-1">{feature.icon}</div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            From write0
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {features.map((feature, index) => (
               <div key={index} className="flex gap-4 p-2 rounded-lg">
@@ -129,7 +189,19 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </button>
 
           <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            <span>Built by </span>
+            <a
+              href={fork.href}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              {fork.name}
+            </a>
+            <span> by {fork.author}</span>
+          </div>
+
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+            <span>Based on write0, built by </span>
             {builtBy.href ? (
               <a
                 href={builtBy.href}
