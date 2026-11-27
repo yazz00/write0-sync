@@ -207,6 +207,8 @@ export const Editor: React.FC<EditorProps> = ({
   const refreshCaret = useCallback(() => setCaretTick((n) => n + 1), []);
   const pendingTypewriterCenterRef = useRef(false);
   const pendingTypewriterCaretIndexRef = useRef(0);
+  // Pour centrer la ligne en cours dès l'activation du mode.
+  const typewriterWasOnRef = useRef(typewriterMode);
 
   // Track selection for calculating diffs correctly
   const selectionRef = useRef({ start: 0, end: 0 });
@@ -308,10 +310,15 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Run typewriter centering after the new content has been laid out.
   useLayoutEffect(() => {
+    const justEnabled = typewriterMode && !typewriterWasOnRef.current;
+    typewriterWasOnRef.current = typewriterMode;
     if (!typewriterMode) return;
-    if (!pendingTypewriterCenterRef.current) return;
+    if (!pendingTypewriterCenterRef.current && !justEnabled) return;
 
     const textarea = textareaRef.current;
+    const caretIndex = pendingTypewriterCenterRef.current
+      ? pendingTypewriterCaretIndexRef.current
+      : (textarea?.selectionStart ?? 0);
     pendingTypewriterCenterRef.current = false;
 
     if (!textarea) return;
@@ -319,11 +326,7 @@ export const Editor: React.FC<EditorProps> = ({
       caretMeasurerRef.current = createCaretMeasurer();
     }
 
-    centerCaretInTextarea(
-      textarea,
-      caretMeasurerRef.current,
-      pendingTypewriterCaretIndexRef.current,
-    );
+    centerCaretInTextarea(textarea, caretMeasurerRef.current, caretIndex);
     syncBackdropScroll();
   }, [content, typewriterMode, syncBackdropScroll]);
 
@@ -518,7 +521,6 @@ export const Editor: React.FC<EditorProps> = ({
               newContent.length - prevContentRef.current.length + paste.end - paste.start,
           }
         : getTextChange(prevContentRef.current, newContent, newCursor);
-      const { start: effectiveChangePos, insertedLength: effectiveInsertLength } = change;
       editKindRef.current =
         !paste &&
         Math.max(change.deletedLength, change.insertedLength) === 1 &&
@@ -550,16 +552,10 @@ export const Editor: React.FC<EditorProps> = ({
       onCursorOffsetChange?.(newCursor);
       setToolbarState((prev) => ({ ...prev, visible: false }));
 
-      if (effectiveInsertLength > 0) {
-        const insertedText = newContent.slice(
-          effectiveChangePos,
-          effectiveChangePos + effectiveInsertLength,
-        );
-        if (insertedText.includes('\n')) {
-          pendingTypewriterCenterRef.current = true;
-          pendingTypewriterCaretIndexRef.current = newCursor;
-        }
-      }
+      // Recentrer après toute modification (retour à la ligne automatique, suppression…),
+      // pas seulement après Entrée ; on ne défile que si la ligne du curseur a changé.
+      pendingTypewriterCenterRef.current = true;
+      pendingTypewriterCaretIndexRef.current = newCursor;
     },
     [onChange, onTyping, pastedRanges, onPastedRangesChange, onCursorOffsetChange],
   );

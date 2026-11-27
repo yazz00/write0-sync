@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Editor } from '../components/Editor';
 import { PastedRange } from '../types';
 import { getPastedSegments, getTextChange, updatePastedRanges } from '../utils/editorUtils';
 
-function Harness({ initial = '' }: { initial?: string }) {
+function Harness({ initial = '', typewriter = false }: { initial?: string; typewriter?: boolean }) {
   const [content, setContent] = useState(initial);
   const [ranges, setRanges] = useState<PastedRange[]>([]);
   return (
@@ -15,7 +15,7 @@ function Harness({ initial = '' }: { initial?: string }) {
         onChange={setContent}
         onTyping={() => {}}
         focusMode={false}
-        typewriterMode={false}
+        typewriterMode={typewriter}
         styleCheck={false}
         pastedRanges={ranges}
         onPastedRangesChange={setRanges}
@@ -137,5 +137,30 @@ describe('drawn caret', () => {
     expect(screen.getByTestId('caret')).toBeTruthy();
     act(() => textarea.blur());
     expect(screen.queryByTestId('caret')).toBeNull();
+  });
+});
+
+describe('typewriter mode', () => {
+  it('recenters the caret line after any edit, not only after Enter, and when enabled', () => {
+    // jsdom ne calcule pas la mise en page : on simule une page haute avec le curseur à 1000 px.
+    const proto = HTMLElement.prototype;
+    const fake = { clientWidth: 600, clientHeight: 400, scrollHeight: 5000, offsetTop: 1000 };
+    const spies = Object.entries(fake).map(([key, value]) =>
+      vi.spyOn(proto, key as keyof typeof fake, 'get').mockReturnValue(value),
+    );
+    try {
+      const view = render(<Harness initial="Hello" />);
+      const textarea = screen.getByRole('textbox', { name: 'Editor' }) as HTMLTextAreaElement;
+      expect(textarea.scrollTop).toBe(0);
+
+      view.rerender(<Harness initial="Hello" typewriter />);
+      expect(textarea.scrollTop).toBeGreaterThan(0);
+
+      textarea.scrollTop = 0;
+      fireEvent.change(textarea, { target: { value: 'Hello!', selectionStart: 6 } });
+      expect(textarea.scrollTop).toBeGreaterThan(0);
+    } finally {
+      spies.forEach((spy) => spy.mockRestore());
+    }
   });
 });
