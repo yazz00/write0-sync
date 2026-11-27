@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor } from '../components/Editor';
 import { PastedRange } from '../types';
@@ -117,5 +117,25 @@ describe('paste tracking', () => {
     expect(container.querySelector('[aria-hidden="true"].editor-layer')?.textContent).toBe(
       'a\n\nb\n\u200b',
     );
+  });
+});
+
+describe('drawn caret', () => {
+  it('shows a steady bar only while the editor has focus and no selection', () => {
+    render(<Harness initial="Hello" />);
+    const textarea = screen.getByRole('textbox', { name: 'Editor' }) as HTMLTextAreaElement;
+    expect(screen.queryByTestId('caret')).toBeNull();
+    textarea.focus();
+    textarea.setSelectionRange(2, 2);
+    fireEvent.select(textarea);
+    expect(screen.getByTestId('caret')).toBeTruthy();
+    textarea.setSelectionRange(0, 3);
+    fireEvent.select(textarea);
+    expect(screen.queryByTestId('caret')).toBeNull();
+    textarea.setSelectionRange(3, 3);
+    fireEvent.select(textarea);
+    expect(screen.getByTestId('caret')).toBeTruthy();
+    act(() => textarea.blur());
+    expect(screen.queryByTestId('caret')).toBeNull();
   });
 });

@@ -111,3 +111,42 @@ it('creates nothing when the name dialog is cancelled', () => {
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Delete document' })).toHaveLength(before);
 });
+
+it('focus mode goes full screen and keeps the bars hidden until a click', () => {
+  vi.useFakeTimers();
+  const requestFullscreen = vi.fn(() => Promise.resolve());
+  document.documentElement.requestFullscreen = requestFullscreen;
+  const view = render(<App />);
+  const root = view.container.firstElementChild!;
+  const sidebar = screen.getByRole('button', { name: /New Document/ }).closest('.flex-shrink-0')!;
+  const topBar = screen.getByRole('button', { name: 'Toggle sidebar' }).closest('.h-14')!;
+
+  fireEvent.click(screen.getByRole('button', { name: 'Enable focus mode' }));
+  expect(requestFullscreen).toHaveBeenCalled();
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Editor' }), { key: 'a' });
+  act(() => {
+    vi.advanceTimersByTime(2000);
+  });
+  fireEvent.pointerMove(window);
+  expect(sidebar.className).toContain('opacity-0');
+  expect(sidebar.className).not.toContain('md:w-72');
+  expect(topBar.className).toContain('opacity-0');
+  expect(root.className).toContain('immersive');
+
+  fireEvent.pointerDown(window);
+  expect(sidebar.className).not.toContain('opacity-0');
+  expect(sidebar.className).toContain('md:w-72');
+  expect(topBar.className).not.toContain('opacity-0');
+  expect(root.className).not.toContain('immersive');
+  delete (document.documentElement as Partial<HTMLElement>).requestFullscreen;
+});
+
+it('remembers the large text option', () => {
+  const view = render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Enable large text' }));
+  expect(view.container.firstElementChild!.className).toContain('large-text');
+  view.unmount();
+  const again = render(<App />);
+  expect(again.container.firstElementChild!.className).toContain('large-text');
+  expect(screen.getByRole('button', { name: 'Disable large text' })).toBeTruthy();
+});

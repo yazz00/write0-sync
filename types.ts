@@ -21,4 +21,5 @@ export interface AppSettings {
   showPreview: boolean;
   showSidebar: boolean;
   highlightPastedText: boolean;
+  largeText: boolean;
 }

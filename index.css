@@ -50,6 +50,11 @@
   overflow-wrap: break-word;
 }
 
+/* Option « Large Text » : police ×1,5 sur les deux couches de l'éditeur */
+.large-text .editor-layer {
+  font-size: 1.6875rem;
+}
+
 /* Typewriter mode: add bottom runway so the caret line can center near the end */
 .editor-layer.typewriter-mode {
   padding-bottom: 50vh;
@@ -61,6 +66,12 @@
     padding-left: max(2rem, calc(50% - 24rem));
     /* 24rem is half of 48rem (3xl) */
     padding-right: max(2rem, calc(50% - 24rem));
+  }
+
+  /* Focus immersif : le volet est rabattu, la colonne gagne sa largeur (48rem + 18rem) */
+  .immersive .editor-layer:not(.split-mode) {
+    padding-left: max(2rem, calc(50% - 33rem));
+    padding-right: max(2rem, calc(50% - 33rem));
   }
 }
 

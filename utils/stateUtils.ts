@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showPreview: false,
   showSidebar: true,
   highlightPastedText: true,
+  largeText: false,
 };
 
 export function restoreSettings(saved: unknown): AppSettings {

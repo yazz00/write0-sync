@@ -15,6 +15,7 @@ import {
   Share,
   ClipboardPen,
   AlignCenter,
+  AArrowUp,
   Cloud,
   CloudOff,
   RefreshCw,
@@ -68,6 +69,19 @@ const App: React.FC = () => {
   // Distraction free typing state
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<number | null>(null);
+  // Mode Focus : plein écran et barres cachées jusqu'au prochain clic.
+  const [immersive, setImmersive] = useState(false);
+  const enterImmersive = useCallback(() => {
+    setImmersive(true);
+    if (!document.fullscreenElement) {
+      // Refusé sans geste de l'utilisateur (ex. touche Échap) : on reste simplement en fenêtre.
+      document.documentElement.requestFullscreen?.()?.catch(() => {});
+    }
+  }, []);
+  const leaveImmersive = useCallback(() => {
+    setImmersive(false);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }, []);
 
   // Export menu state
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -167,16 +181,24 @@ const App: React.FC = () => {
       }
     };
 
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setImmersive(false);
+    };
+
     window.addEventListener('pointermove', revealControls);
     window.addEventListener('pointerdown', revealControls);
+    window.addEventListener('pointerdown', leaveImmersive);
     window.addEventListener('focusin', revealControls);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => {
       window.removeEventListener('pointermove', revealControls);
       window.removeEventListener('pointerdown', revealControls);
+      window.removeEventListener('pointerdown', leaveImmersive);
       window.removeEventListener('focusin', revealControls);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
     };
-  }, []);
+  }, [leaveImmersive]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -224,6 +246,7 @@ const App: React.FC = () => {
 
   // --- Handlers ---
   const handleTyping = () => {
+    if (settings.focusMode) enterImmersive();
     setIsTyping(true);
     if (typingTimeoutRef.current) {
       window.clearTimeout(typingTimeoutRef.current);
@@ -340,7 +363,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div
+      className={`flex h-dvh overflow-hidden ${settings.largeText ? 'large-text' : ''} ${immersive ? 'immersive' : ''}`}
+    >
       {/* Help Modal */}
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
@@ -365,8 +390,8 @@ const App: React.FC = () => {
       <div
         inert={showHelp || deleteDocId !== null || askNewDocName}
         className={`flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
-          settings.showSidebar ? 'w-0 md:w-72' : 'w-0'
-        } ${isTyping ? 'opacity-0 pointer-events-none delay-200' : 'opacity-100 delay-0'}`}
+          settings.showSidebar && !immersive ? 'w-0 md:w-72' : 'w-0'
+        } ${isTyping || immersive ? 'opacity-0 pointer-events-none delay-200' : 'opacity-100 delay-0'}`}
       >
         <Sidebar
           documents={documents}
@@ -391,7 +416,7 @@ const App: React.FC = () => {
       >
         {/* Top Bar - Fades out when typing */}
         <div
-          className={`absolute inset-x-0 top-0 h-14 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 bg-white dark:bg-gray-900 z-20 transition-opacity duration-700 ease-in-out ${isTyping ? 'opacity-0 pointer-events-none delay-200' : 'opacity-100 delay-0'}`}
+          className={`absolute inset-x-0 top-0 h-14 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 bg-white dark:bg-gray-900 z-20 transition-opacity duration-700 ease-in-out ${isTyping || immersive ? 'opacity-0 pointer-events-none delay-200' : 'opacity-100 delay-0'}`}
           onFocusCapture={() => setIsTyping(false)}
         >
           <div className="flex items-center gap-4">
@@ -413,7 +438,11 @@ const App: React.FC = () => {
           <div className="flex items-center gap-1 sm:gap-2">
             <Tooltip content="Focus Mode" position="bottom">
               <button
-                onClick={() => toggleSetting('focusMode')}
+                onClick={() => {
+                  if (settings.focusMode) leaveImmersive();
+                  else enterImmersive();
+                  toggleSetting('focusMode');
+                }}
                 className={`p-2 rounded-md transition-colors ${settings.focusMode ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400'}`}
                 aria-label={settings.focusMode ? 'Disable focus mode' : 'Enable focus mode'}
               >
@@ -458,6 +487,16 @@ const App: React.FC = () => {
             </Tooltip>
 
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+            <Tooltip content="Large Text" position="bottom">
+              <button
+                onClick={() => toggleSetting('largeText')}
+                className={`p-2 rounded-md transition-colors ${settings.largeText ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400'}`}
+                aria-label={settings.largeText ? 'Disable large text' : 'Enable large text'}
+              >
+                <AArrowUp size={18} />
+              </button>
+            </Tooltip>
 
             <Tooltip
               content={`Switch to ${settings.theme === 'light' ? 'Dark' : 'Light'} Mode`}

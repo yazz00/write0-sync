@@ -199,6 +199,12 @@ export const Editor: React.FC<EditorProps> = ({
   const [cursorOffset, setCursorOffset] = useState(0);
 
   const caretMeasurerRef = useRef<CaretMeasurer | null>(null);
+  // Curseur bleu fixe dessiné à la place du curseur natif (qui clignote et ne s'épaissit pas).
+  const [caretBox, setCaretBox] = useState<{ top: number; left: number; height: number } | null>(
+    null,
+  );
+  const [caretTick, setCaretTick] = useState(0);
+  const refreshCaret = useCallback(() => setCaretTick((n) => n + 1), []);
   const pendingTypewriterCenterRef = useRef(false);
   const pendingTypewriterCaretIndexRef = useRef(0);
 
@@ -280,6 +286,7 @@ export const Editor: React.FC<EditorProps> = ({
     if (textareaRef.current && backdropRef.current) {
       backdropRef.current.scrollTop = textareaRef.current.scrollTop;
     }
+    refreshCaret();
     setToolbarState((prev) => ({ ...prev, visible: false }));
   };
 
@@ -319,6 +326,39 @@ export const Editor: React.FC<EditorProps> = ({
     );
     syncBackdropScroll();
   }, [content, typewriterMode, syncBackdropScroll]);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (
+      !textarea ||
+      readOnly ||
+      document.activeElement !== textarea ||
+      textarea.selectionStart !== textarea.selectionEnd
+    ) {
+      setCaretBox(null);
+      return;
+    }
+    if (!caretMeasurerRef.current) caretMeasurerRef.current = createCaretMeasurer();
+    const { mirror, textNode, marker } = caretMeasurerRef.current;
+    syncMirrorStyles(textarea, mirror);
+    textNode.data = textarea.value.slice(0, textarea.selectionStart);
+    const fontSize = Number.parseFloat(window.getComputedStyle(textarea).fontSize) || 18;
+    const height = fontSize * 1.2;
+    setCaretBox({
+      top: marker.offsetTop + (getLineHeightPx(textarea) - height) / 2 - textarea.scrollTop,
+      left: marker.offsetLeft - textarea.scrollLeft,
+      height,
+    });
+  }, [content, cursorOffset, caretTick, readOnly]);
+
+  // La colonne change de taille sans resize de fenêtre (volet qui s'anime, plein écran).
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(refreshCaret);
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [refreshCaret]);
 
   // --- History Management ---
   const editKindRef = useRef<'typing' | 'change'>('change');
@@ -536,6 +576,7 @@ export const Editor: React.FC<EditorProps> = ({
     setCursorOffset(selectionStart);
     onCursorOffsetChange?.(selectionStart);
     selectionRef.current = { start: selectionStart, end: selectionEnd };
+    refreshCaret();
 
     // Hide toolbar if selection is collapsed
     if (selectionStart === selectionEnd) {
@@ -833,6 +874,14 @@ export const Editor: React.FC<EditorProps> = ({
       >
         {renderBackdrop()}
       </div>
+      {caretBox && (
+        <div
+          data-testid="caret"
+          aria-hidden="true"
+          className="absolute w-[2px] bg-[#3842fb] pointer-events-none z-20"
+          style={{ top: caretBox.top, left: caretBox.left, height: caretBox.height }}
+        />
+      )}
       <textarea
         ref={textareaRef}
         value={content}
@@ -845,8 +894,10 @@ export const Editor: React.FC<EditorProps> = ({
         onClick={handleClick}
         onMouseUp={handleMouseUp}
         onMouseDown={handleMouseDown}
+        onFocus={refreshCaret}
+        onBlur={refreshCaret}
         readOnly={readOnly}
-        className={`editor-layer absolute inset-0 bg-transparent text-transparent caret-blue-600 dark:caret-blue-400 resize-none outline-none z-10 selection:bg-blue-200/50 dark:selection:bg-blue-800/50 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 ${isSplitMode ? 'split-mode' : ''} ${typewriterMode ? 'typewriter-mode' : ''}`}
+        className={`editor-layer absolute inset-0 bg-transparent text-transparent caret-transparent resize-none outline-none z-10 selection:bg-blue-200/50 dark:selection:bg-blue-800/50 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 ${isSplitMode ? 'split-mode' : ''} ${typewriterMode ? 'typewriter-mode' : ''}`}
         spellCheck={false}
         placeholder="Start writing..."
         aria-label="Editor"
